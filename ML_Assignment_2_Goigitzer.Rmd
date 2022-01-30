@@ -1,0 +1,68 @@
+---
+title: "ML - Assignment 2"
+author: "Goigitzer Bernd"
+date: "30 1 2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+
+flist <- c(
+  'VM_svm_results.Rdata',
+  'VM_RF_results.Rdata',
+  'VM_boosting_results.Rdata',
+  'NN_results.Rdata')
+
+df.standard <- data.frame()
+
+for(i in c(1:length(flist))){
+  load(flist[i])
+  df.standard <- bind_rows(df.standard, df.results)
+}
+
+```
+
+## Zusammenfassung
+
+Teil 1 befasst sich mit dem MNIST-Datensatz. Im ersten Schritt sollen zunächst die angeführten Klassifikationsverfahren (SVM, Random Forest, Boosting, Neural Networks) mit den Standardparametern verglichen werden. 
+Es sollen die Laufzeit und das Klassifikationsergebnis in Abhängigkeit der Größe des Trainingsdatensatzes analysiert werden. Im weiteren Schritt sollen die einzelnen Verfahren im Hinblick auf Parameteränderungen untersucht werden.
+
+## Teil 1
+
+### Laufzeiten und Klassifikationsergebnisse - Standardparameter
+
+HIEr TABELLE MIT PRAMAETREN
+
+Al Klassifikationsergebnis wird die Accuracy herangezogen - Anteil der richtigen Klassifikationen auf den Testdaten. 
+Die Testdaten wurden dabei auf 500 begrenzt. 
+Ausser beim neuralen Netz wurde bis zu 10.000 Trainingsdatensätzen trainiert. 
+Das war der Rechenzeit geschuldet. 
+AdaBoosting benötigte für einen Durchgang mit 10.000 Trainingsdatensätzen bereits 30 Minuten.
+Beim neuralen Netz mit den Standardeinstellungen (3 epochs, 1 hidden Layer mit 10 nodes) stellt sich heraus, dass die Rechenzeit im Vergleich zu den anderen Verfahren sehr gering ist. 
+Dafür leidet die Accuracy. 
+Um hier auf annähernd gute Ergebnisse zu erhalten benötigt man den gesamten Datensatz mit 60.000 Trainingsbeispielen.
+
+Der nächste Plot zeigt die Accuracy auf der y-Achse gegenüber der Größe der Trainingsdaten auf der logarithmierten x-Achse.
+
+
+
+```{r}
+df.standard %>% 
+  ggplot(aes(x=train.size, y=success.test, col = method))+
+  geom_line()+
+  scale_x_log10()
+```
+
+```{r}
+df.standard %>% 
+  ggplot(aes(x=train.size, y=elapsed.training, col = method))+
+  geom_line()+
+  facet_wrap(~method, scales = 'free')
+```
+
+
+
+

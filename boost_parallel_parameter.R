@@ -27,6 +27,7 @@ test_label <- mnist.test_label[1:num_test]
 
 df.results <- data.frame()
 sample.vec <- c(c(50,100), c(2:10)*1e2, c(2:5)*1e3, c(7500, 10000))
+n0 <- 800
 
 boost.results <- function(n0){
   cat(paste0('running: ', n0, '\n'))
@@ -45,7 +46,10 @@ boost.results <- function(n0){
   # Train Boosting
   t1 <- proc.time()
   
-  S <- adabag::boosting(train_label ~., data=X)
+  S <- adabag::boosting(
+    train_label ~., 
+    data=X,
+    control=rpart::rpart.control(cp = 0.05, minbucket=20))
   
   t2 <- proc.time()
   training.time <- t2-t1
