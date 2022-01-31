@@ -2,13 +2,21 @@
 title: "ML - Assignment 2"
 author: "Goigitzer Bernd"
 date: "30 1 2022"
-output: html_document
+output: 
+  html_document:
+    theme: cerulean
+    toc: true
+    toc_depth: 4
+    toc_float: 
+      collapsed: false
+      smooth_scroll: false
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
+library(kableExtra)
 
 flist <- c(
   'VM_svm_results.Rdata',
@@ -27,42 +35,336 @@ for(i in c(1:length(flist))){
 
 ## Zusammenfassung
 
-Teil 1 befasst sich mit dem MNIST-Datensatz. Im ersten Schritt sollen zunächst die angeführten Klassifikationsverfahren (SVM, Random Forest, Boosting, Neural Networks) mit den Standardparametern verglichen werden. 
-Es sollen die Laufzeit und das Klassifikationsergebnis in Abhängigkeit der Größe des Trainingsdatensatzes analysiert werden. Im weiteren Schritt sollen die einzelnen Verfahren im Hinblick auf Parameteränderungen untersucht werden.
+Teil 1 befasst sich mit dem MNIST-Datensatz. 
+Im ersten Schritt sollen zunächst die angeführten Klassifikationsverfahren (SVM, Random Forest, Boosting, Neural Networks) mit den Standardparametern verglichen werden. 
+Es sollen die Laufzeit und das Klassifikationsergebnis in Abhängigkeit der Größe des Trainingsdatensatzes analysiert werden. 
+Als Klassifikationsergebnis wird die Accuracy (Anteil der richtigen Klassifikationen) auf einem verkleinerten Testdatensatz (500 Datensätze) herangezogen.
+Des Weiteren sollen dann die einzelnen Verfahren im Hinblick auf Parameteränderungen untersucht werden.
 
 ## Teil 1
 
-### Laufzeiten und Klassifikationsergebnisse - Standardparameter
+### Standardparameter
 
-HIEr TABELLE MIT PRAMAETREN
+Die folgende Tabelle zeigt jene Standardparameter, welche später variiert werden:
 
-Al Klassifikationsergebnis wird die Accuracy herangezogen - Anteil der richtigen Klassifikationen auf den Testdaten. 
+```{r, echo=FALSE}
+stp <- data.frame(
+  'method' = c('SVM','Adaboost',rep('Random Forest',3),rep('Neural Net',3)),
+  'parameter' = c('kernelfunction',
+                  '# trees',
+                  'mtry','ntree','nodesize',
+                  'epochs','activation function','hidden neurons'),
+  'default' = c('radial',100,28,500,1,3,'sigmoid',10)
+)
+
+kable(stp) %>% kable_classic(full_width=F)
+```
+
+
+<br>
+
+Als Klassifikationsergebnis wird die Accuracy herangezogen - Anteil der richtigen Klassifikationen auf den Testdaten. 
 Die Testdaten wurden dabei auf 500 begrenzt. 
 Ausser beim neuralen Netz wurde bis zu 10.000 Trainingsdatensätzen trainiert. 
 Das war der Rechenzeit geschuldet. 
 AdaBoosting benötigte für einen Durchgang mit 10.000 Trainingsdatensätzen bereits 30 Minuten.
 Beim neuralen Netz mit den Standardeinstellungen (3 epochs, 1 hidden Layer mit 10 nodes) stellt sich heraus, dass die Rechenzeit im Vergleich zu den anderen Verfahren sehr gering ist. 
 Dafür leidet die Accuracy. 
-Um hier auf annähernd gute Ergebnisse zu erhalten benötigt man den gesamten Datensatz mit 60.000 Trainingsbeispielen.
+Um hier annähernd gute Ergebnisse zu erhalten benötigt man den gesamten Datensatz mit 60.000 Trainingsbeispielen.
 
 Der nächste Plot zeigt die Accuracy auf der y-Achse gegenüber der Größe der Trainingsdaten auf der logarithmierten x-Achse.
 
+Random Forest zeigt hier die besten Ergebnisse für nahezu alle Datensatzgrößen. Beim Boosting nimmt die Accuracy ab ca 1000 samples wieder ab.
+Wie schon vorhin erwähnt sieht man hier, dass das Neural Net den gesamten Datensatz zum training benötigt um annähernd gleiche Accuracy zu erreichen.
 
+<br>
 
-```{r}
+```{r, echo=FALSE}
 df.standard %>% 
   ggplot(aes(x=train.size, y=success.test, col = method))+
   geom_line()+
-  scale_x_log10()
+  scale_x_log10()+
+  labs(title = 'Datensatzgroesse vs. Accuracy',
+       subtitle = 'Standardparameter',
+       x = 'Anzahl Trainingsdaten',
+       y = 'Accuracy in %',
+       col='Methode') +
+  theme_light()
+  
 ```
 
-```{r}
+<br>
+Die nächste Grafik zeigt für alle Verfahren die CPU-Time für das Training in Abhängigkeit der Datensatzgröße. Man sieht bei allen Verfahren einen annähernd linearen Zusammenhang.
+Augenmerk sollte man auf die Skala der y-Achse legen, hier sieht man, dass das neural net mit den Standardparametern lediglich ca. 7 Sekunden für den gesamten Datensatz benötigt.
+Im Gegensatz dazu benötigt Adaboost für 10.000 samples bereits über 30 Minuten.
+
+
+```{r, echo=FALSE}
 df.standard %>% 
   ggplot(aes(x=train.size, y=elapsed.training, col = method))+
+  geom_line(show.legend = FALSE)+
+  facet_wrap(~method, scales = 'free')+
+  labs(title = 'Datensatzgroesse vs. CPU-Time',
+       subtitle = 'Standardparameter',
+       x = 'Anzahl Trainingsdaten',
+       y = 'CPU Time [s]') +
+  theme_light()
+```
+<br>
+
+Berücksichtigt man, dass das Training nur einmalig durchgeführt wird, so würde man sich aufgrund der höhern Trefferquote für den Random Forest entscheiden. Bezieht man die Trainingsrechenzeit in die Entscheidung mitein, so wäre vermutlich die Wahl das Neurale Net, da hier der Unterschied 1 - 2 Zehnerpotenzen sind.
+
+### Parameteranalyse
+
+In diesem Abschnitt werden bei den einzelnen Verfahren verschiedene Parameter verändert und wiederum anhand der Accuracy und Rechenzeit untersucht.
+
+#### SVM
+
+Die nächste Grafik zeigt den Einfluss der Kernelfunktion auf die Accuracy.
+Die Polynom Kernelfunktion erweist sich mit dem default Grad von 3 als unbrauchbar. Hier müsste man hinsichtlich des Grades noch weiter Untersuchungen anstellen. Alle anderen Kernelfunktionen konvergieren gegen die gleiche Accuracy aber unterschiedlich schnell (im Hinblick auf der Größe der Trainingsdaten).
+So zeigt sich, dass in diesem Beispiel der lienare Kernel schon bei kleinerm Datensatz durchegehen bessere Ergebnisse liefert.
+
+Der Plot darunter zeigt zusätzlich, dass die Rechenzeit mit dem linearen Kernel deutlich kürzer ist. Dieser wäre hiermit klar zu bevorzugen.
+
+```{r, echo=FALSE}
+
+load('svm_results_parameter.Rdata')
+svm.para <- df.results %>% 
+  bind_rows(
+    df.standard %>% 
+      filter(method == 'SVM', train.size >= 100) %>% 
+      mutate(parameter = 'kernel: radial')
+  )
+
+svm.para %>% 
+  ggplot(aes(x=train.size, y=success.test, col = parameter))+
   geom_line()+
-  facet_wrap(~method, scales = 'free')
+  scale_x_log10()+
+  labs(title = 'Datensatzgroesse vs. Accuracy',
+       subtitle = 'SVM',
+       x = 'Anzahl Trainingsdaten',
+       y = 'Accuracy in %',
+       col='SVM') +
+  theme_light()
+
+```
+<br>
+
+```{r, echo=FALSE}
+
+svm.para %>% 
+  ggplot(aes(x=train.size, y=elapsed.training, col = parameter))+
+  geom_line()+
+  scale_x_log10()+
+  labs(title = 'Datensatzgroesse vs. CPU Time',
+       subtitle = 'SVM',
+       x = 'Anzahl Trainingsdaten',
+       y = 'CPU Time',
+       col='SVM') +
+  theme_light()
+
+```
+<br>
+
+#### Random Forest
+
+Beim Random Forest wurde ein Tuning-Grid mit allen möglichen Kombinationen aus den folgenden Parametern erstellt und alle Varianten durchgerechnet. Aufgrund der Rechendauer wurden hier die Sampleanzahl fest mit 1000 gewählt.
+
+```{r, echo = FALSE}
+tunegrid.RF <- data.frame(
+  'parameter' = c('mtry','ntree','nodesize'),
+  'values' = c('(4,8,28)', '(100, 200, 300, 500)', '(1,2,5,15)')
+)
+
+kable(tunegrid.RF) %>% kable_classic(full_width=F)
+
 ```
 
+<br>
+Die nächste Grafik zeigt den erwarteten Zusammenhang zwischen der Anzahl der Bäume (farblich dargestellt) und der Rechenzeit. Je mehr Bäume desto länger die Rechenzeit. Man erkennt, dass bereits 300 Bäume bei geringerer Rechenzeit ein vergleichbares Ergebnis wie mit 500 Bäumen liefern.
+
+<br>
+
+```{r, echo = FALSE}
+
+load('RF_results_parameter.Rdata')
+RF.para <- df.results
+
+RF.para %>% 
+  ggplot(aes(x=elapsed.training, y=success.test, col=factor(ntree)))+
+  geom_point()+
+  #facet_grid(mtry~nodesize, scales = 'free')+
+  #scale_x_log10()+
+  labs(title = 'CPU Time vs. Accuracy',
+       subtitle = 'Random Forest',
+       x = 'CPU Time [s]',
+       y = 'Accuracy in %',
+       col='ntree') +
+  theme_light()
+
+```
+<br>
+
+In der nächsten Grafik werden die Ergebnisse für einen Forest mit 300 Bäumen dargestellt. Die Farben zeigen die gewählte *nodesize* und die Form der Punkte den Parameter *mtry*. 
+Es zeigt sich, dass bei großer nodesize (Mindestnzahl der Datenpunkte im Leafnode) die Rechenzeit kurz ist. Dies ist nachvollziehbar, da hier ja kleinere Bäume gebildet werden. Jedoch ist die Accuracy ebenfalls deutlich geringer.
+Die besten Ergebnisse erziehlt man mit einer kleinen nodesize und höheren mtry-Wert. Was ebenfalls nachvollziehbar ist, da dieser Parameter die Anzahl der wählbaren Variablen pro Knoten darstellt.
+
+<br>
+
+```{r, echo=FALSE}
 
 
+RF.para %>% 
+  filter(ntree==300) %>% 
+  ggplot(aes(x=elapsed.training, y=success.test, col=factor(nodesize)))+
+  geom_point(aes(shape=factor(mtry)))+
+  #facet_grid(mtry~nodesize, scales = 'free')+
+  #scale_x_log10()+
+  labs(title = 'CPU Time vs. Accuracy',
+       subtitle = 'Random Forest - 300 Bäume',
+       x = 'CPU Time [s]',
+       y = 'Accuracy in %',
+       col='nodesize',
+       shape = 'mtry') +
+  theme_light()
+```
+
+<br>
+
+#### Adaboost
+
+Aufgrund der Rechenzeit wurde hier nur der Parameter *mfinal* zusätzlich zum Standardwert von 100 auf 10 gesetzt. Der Parameter drückt die Anzahl der weak learners, also der Bäume aus. In der nächsten Grafik sieht man, dass die Accuracy wie erwartet zurückgeht.
+Die Grafik darunter zeigt, dass die Reduktion der Rechenzeit jedoch sehr hoch ist.
+
+```{r, echo=FALSE}
+
+load('Boosting_results_10trees.Rdata')
+boost.para <- df.results %>% 
+  bind_rows(
+    df.standard %>% filter(method=='ada') %>% mutate(parameter = 'mfinal 100')
+  )
+
+boost.para  %>% 
+  ggplot(aes(x=train.size, y=success.test, col=parameter))+
+  geom_line()+
+  #facet_grid(mtry~nodesize, scales = 'free')+
+  scale_x_log10()+
+  labs(title = 'Datensatzgroesse vs. Accuracy',
+       subtitle = 'Adaboost',
+       x = 'Anzahl der Trainingsdaten',
+       y = 'Accuracy in %',
+       col='Parameter') +
+  theme_light()
+
+
+```
+
+<br>
+
+```{r, echo=FALSE}
+
+boost.para %>% 
+  ggplot(aes(x=train.size, y=elapsed.training, col = parameter))+
+  geom_line()+
+  scale_x_log10()+
+  labs(title = 'Datensatzgroesse vs. CPU Time',
+       subtitle = 'Adaboost',
+       x = 'Anzahl Trainingsdaten',
+       y = 'CPU Time',
+       col='Parameter') +
+  theme_light()
+
+```
+
+<br>
+
+#### Neural Net
+
+Beim Neural Net wurde ähnlich wie beim Random Forest ein Tuning-Grid mit allen möglichen Kombinationen aus den unten stehenden Parametern erstellt. Das NN wurde mit einem hidden Layer konzipiert.
+
+```{r, echo=FALSE}
+tunegrid.NN <- data.frame(
+  'parameter' = c('epochs', 'activation', 'hidden neurons'),
+  'values' = c('(3,5,10,20)','(sigm, tanh)','(10,28,56)')
+)
+
+kable(tunegrid.NN) %>% kable_classic(full_width=F)
+
+```
+<br>
+
+Die nächste Grafik zeigt einen Facet-Plot mit der Accuracy ggenüber der Anahl an Trainingsdaten. Die Facets sind die Aktivierungsfunktion und Anzahl der hidden neurons. Die Anzahl der epochen sind farblich gekennzeichnet. 
+
+Die besten Ergebnisse erhält man mit 20 Epochen. Hier zeigt sich, dass die Accuracy schon bei wenigen Daten relativ hoch ist. Als Aktivierungsfunktion ist meistens die Sigmoidfunktion besser. 
+
+Die Anzahl an hidden Neurons sollte man bei dieser Auswahl auf 56 setzen.
+
+<br>
+
+```{r, echo=FALSE}
+
+load('NN_results_parmeter.Rdata')
+NN.para <- df.results
+
+NN.para %>% 
+  #mutate(parameter = paste0(hidden1, activation, sep='-')) %>% 
+  ggplot(aes(x=train.size, y=success.test, col=factor(epochs)))+
+  geom_line()+
+  facet_grid(hidden1~activation)+
+  scale_x_log10()+
+  labs(title = 'Datensatzgroesse vs. Accuracy',
+       subtitle = 'Neural Net',
+       x = 'Anzahl der Trainingsdaten',
+       y = 'Accuracy in %',
+       col='epochs') +
+  theme_light()
+
+```
+
+<br>
+
+In der nächsten Grafik erkennt man, die erwartete höhere Rechendauer bei mehr Epochen. Allerdings ist die Dauer mit ca. 2 Minuten gering im Vergleich zu anderen Methoden. Dargestellt sind die Ergebnisse des neuralen Netzes mit 56 hidden neurons und der Sigmoid Aktivierungsfunktion.
+
+<br>
+
+```{r, echo=FALSE}
+
+NN.para %>% 
+  filter(activation == 'sigm', hidden1 == 56) %>% 
+  ggplot(aes(x=train.size, y=elapsed.training, col=factor(epochs)))+
+  geom_line()+
+  #facet_grid(hidden1~activation)+
+  scale_x_log10()+
+  labs(title = 'Datensatzgroesse vs. CPU Time',
+       subtitle = 'Neural Net - 56 hidden neurons, sigmoid',
+       x = 'Anzahl der Trainingsdaten',
+       y = 'CPU Time [s]',
+       col='epochs') +
+  theme_light()
+
+```
+
+### Conclusio
+
+Boosting liefert schlechtere Ergebnisse als die anderen Verfahren. Bei einer Trainingsdatensatzgröße von 10.000 samples sind die Höchstwerte der Accuracy der anderen Verfahren in der nächsten Tabelle dargestellt. Die bessere Performance des Random Forest geht auf Kosten der Rechendauer, die das 15-fache der CPU Time des Trainings des Neuralen Netzes beträgt. Die beste Performance hat das Neurale Netz mit `r max(NN.para$success.test)` % bei einer Trainingsdauer von ca 80 Sekunden mit einem Trainingsdatensatz von 40.000 Samples. Anhand dieser Tatschachen würde es sich jedenfalls lohnen das Neurale Netz weiter zu verfeinern und im Hinblick auf die Performance auf dem gesamten Testdanetsatzes zu untersuchen.
+
+```{r, echo = FALSE}
+
+df.per <- data.frame(
+  'Methode' = c('Neural Net', 'Random Forest', 'SVM', 'Neural Net - 40.000 Samples'),
+  'Accuracy'= c(max(NN.para$success.test[NN.para$train.size==10000]),
+                df.standard$success.test[df.standard$method=='RF' &
+                                           df.standard$train.size == 10000],
+                max(svm.para$success.test[svm.para$train.size==10000]),
+                max(NN.para$success.test)),
+  'CPU Time' = c(max(NN.para$elapsed.training[NN.para$train.size==10000]),
+                df.standard$elapsed.training[df.standard$method=='RF' &
+                                           df.standard$train.size == 10000],
+                max(svm.para$elapsed.training[svm.para$train.size==10000]),
+                79.4)
+)
+
+kable(df.per %>% arrange(-Accuracy)) %>% kable_classic(full_width=F)
+
+```
 

@@ -1,6 +1,8 @@
 #
 ##
-#  aufgabe 1
+#  aufgabe 1 - Boosting
+#
+# 
 
 
 library(e1071)
