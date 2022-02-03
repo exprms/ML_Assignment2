@@ -41,6 +41,10 @@ Es sollen die Laufzeit und das Klassifikationsergebnis in Abhängigkeit der Grö
 Als Klassifikationsergebnis wird die Accuracy (Anteil der richtigen Klassifikationen) auf einem verkleinerten Testdatensatz (500 Datensätze) herangezogen.
 Des Weiteren sollen dann die einzelnen Verfahren im Hinblick auf Parameteränderungen untersucht werden.
 
+<br>
+Teil 2 befasst sich mit dem CIFAR Datensatz. Es soll ein Neurales Netz trainiert werden und verschiedene Parameter im Hiblick auf Accuracy und Rechenzeit verglichen werden. Hier wird die Accuracy ebenfalls auf einem Testdatensatz mit 500 samples verglichen.
+
+
 ## Teil 1
 
 ### Standardparameter
@@ -368,3 +372,73 @@ kable(df.per %>% arrange(-Accuracy)) %>% kable_classic(full_width=F)
 
 ```
 
+## Teil 2
+
+Die nächste Tabelle zeigt die durchgeführten Trainings, sowie Accuracy und Trainingsdauer. Bei method wird unterschieden in NN und NN - 3 Blocks. Bezeichnen wir einen Block bestehend aus dem Input Layer, einem Convolution Layer, und einem Max-Pooling Layer, so bedeutet method = NN, dass das neurale Netz aus einem Block besteht gefolgt von einem hidden Layer mit hidden1 nodes. NN - 3 Blocks bzw NN - dropout bestehen aus 3 dieser Blöcke gefolgt von zwei Layern mit hidden1 und hidden2 nodes. 
+
+
+```{r, echo = FALSE}
+
+load('cifar_results2.Rdata')
+cifar.results <- df.results
+
+kable(cifar.results %>% select(-hidden3) %>% arrange(-success.test)) %>% kable_classic(full_width=F)
+
+```
+
+<br>
+
+Da die Anzahl Epochen und die Anzahl der Trainingsdaten die Performance jedenfalls positiv beeinflussen, werden für die ersten Bertrachtungen jeweils vergleichbare Netze dargestellt.
+
+Zunächst die Minimal-, und auch zeitsparendste Variante mit 5 Epochen und 5000 Trainingsdaten. Die batchsize von 64 wirkt sich offenbar eher negativ aus. Dies könnte jedenfalls damit zusammenhängen, dass mit 5000 Datenpunkten nicht genug Daten vorhanden sind. Interessanterweise schneidet das Netz mit 3 Blöcken schlechter ab als jenes mit nur einem Block. Die Rechenzeit beträgt in jedem Fall ca. 12-13 Sekunden pro Epoche.
+
+```{r, echo=FALSE}
+
+kable(cifar.results %>% 
+        select(-hidden3) %>% 
+        filter(epochs==5, train.size == 5000) %>% 
+        arrange(-success.test)) %>% 
+  kable_classic(full_width=F)
+
+```
+<br>
+
+In der nächsten Tabelle werden die besten Ergebnisse nach methode, train.size und epochs dargestellt. 
+Man erkennt, dass batchsize = 32 und 256 nodes in den hidden Layers immer zur besten Performance führen. 
+
+```{r, echo = FALSE}
+
+
+kable(cifar.results %>% 
+        select(-hidden3) %>% 
+        filter(epochs %in% c(5,10), train.size %in% c(5000, 10000)) %>% 
+        group_by(method,train.size,epochs) %>% 
+        arrange(-success.test) %>%
+        mutate(r = row_number()) %>% 
+        ungroup() %>% 
+        filter(r==1) %>% 
+        select(-r)) %>% 
+  kable_classic(full_width=F)
+
+```
+
+<br>
+
+Die nächste Tabelle zeigt nun alle durchgänge mit batchsize = 32 und hidden1 = 256. 
+Wie erwartet dominieren die Größe des Trainingsdatensatzes und die Anzahl der Epochen das Ergebnis maßgeblich.
+
+```{r, echo=FALSE}
+
+kable(cifar.results %>% 
+        select(-hidden3) %>% 
+        filter(batchsize==32, hidden1 == 256) %>% 
+        arrange(-success.test)) %>% 
+  kable_classic(full_width=F)
+
+
+```
+
+### Conclusio
+
+Es war überraschend, dass 100 Epochen lediglich zu einer Accuracy von 0.58 geführt haben. Leider habe ich verabsäumt dieses Modell an den Trainingsdaten zu testen, es könnte durchaus sein, dass hier Overfitting vorliegt. 
+Es hat sich gezeigt, dass die Anzahl an Epochen und die Trainingsdatensatzgröße linear in die Rechenzeiteinfließen. Das Training am gesamten Datensatz mit 100 Epochen würde auf meiner Maschine fast 4 Stunden benötigen.
